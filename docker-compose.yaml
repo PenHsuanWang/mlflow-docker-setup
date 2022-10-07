@@ -1,0 +1,20 @@
+version: '3.9'
+services:
+  db:
+    #image: "ubuntu/mysql:8.0-20.04_beta"
+    build: ./build_mysql_image/
+    environment:
+      TZ: UTC
+      MYSQL_ROOT_PASSWORD: root
+    
+  mlflow:
+    tty: true
+    build: ./build_mlflow_image/
+    ports:
+      - "8090:8080"
+      - "5010:5000"
+
+networks:
+  default:
+    name: mlflow-tracking-server-network
+    external: true
