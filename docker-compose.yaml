@@ -1,11 +1,12 @@
 version: '3.9'
 services:
   db:
-    #image: "ubuntu/mysql:8.0-20.04_beta"
     build: ./build_mysql_image/
     environment:
       TZ: UTC
       MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3316:3306"
     
   mlflow:
     tty: true
@@ -13,6 +14,9 @@ services:
     ports:
       - "8090:8080"
       - "5010:5000"
+    depends_on:
+      db:
+        condition: service_started
 
 networks:
   default:

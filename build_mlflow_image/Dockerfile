@@ -7,8 +7,12 @@ RUN apt -y update
 RUN apt -y install python3.9 python3-pip python3.9-distutils --no-install-recommends
 RUN python3.9 -m pip install pip setuptools distlib --upgrade
 RUN pip install mlflow pymysql
-
+RUN pip install cryptography
 
 RUN cd ~ && mkdir -p mlflow-tracking-server && mkdir -p mlflow-tracking-server/mlruns
 WORKDIR /root/mlflow-tracking-server
 
+Copy startup_script.sh .
+
+ENTRYPOINT ["sh"]
+CMD ["startup_script.sh"]

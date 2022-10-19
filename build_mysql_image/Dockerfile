@@ -3,6 +3,6 @@ MAINTAINER Ben Wang
 
 ENV TZ=UTC
 ENV MYSQL_ROOT_PASSWORD=root
-
-COPY setup_db.sh /
-#COPY wait_for_mysql.sh /
+ENV MYSQL_USER='mlflow'
+ENV MYSQL_PASSWORD='mlflow'
+ENV MYSQL_DATABASE=mlflowruns
