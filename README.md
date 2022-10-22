@@ -13,6 +13,8 @@ docker-compose up
 
 ```
 
+![](https://i.imgur.com/XyhMzjf.png)
+
 check container is running
 
 ```
