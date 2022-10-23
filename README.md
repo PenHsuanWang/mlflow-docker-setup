@@ -61,5 +61,6 @@ Start mlflow tracking server which using `db` services as backend store. Running
 
 
 
-
+## NOTE
+the artifact sevre should run in the indivisual server, independent from tracking backend
 
