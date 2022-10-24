@@ -1,8 +1,0 @@
-FROM ubuntu/mysql:8.0-20.04_beta
-MAINTAINER Ben Wang
-
-ENV TZ=UTC
-ENV MYSQL_ROOT_PASSWORD=root
-ENV MYSQL_USER='mlflow'
-ENV MYSQL_PASSWORD='mlflow'
-ENV MYSQL_DATABASE=mlflowruns
