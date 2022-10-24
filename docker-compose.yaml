@@ -1,15 +1,18 @@
 version: '3.9'
 services:
   db:
-    build: ./build_mysql_image/
+    image: mysql
     environment:
       TZ: UTC
       MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: mlflowruns
+      MYSQL_USER: mlflow
+      MYSQL_PASSWORD: mlflow
     ports:
       - "3316:3306"
 
   mlflow-artifact-server:
-    build: ./build_mlflow_image/
+    build: .
     expose:
       - "5500"
     ports:
@@ -25,7 +28,7 @@ services:
     
   mlflow:
     tty: true
-    build: ./build_mlflow_image/
+    build: .
     ports:
       - "5010:5000"
     depends_on:
@@ -39,8 +42,4 @@ services:
       --backend-store-uri mysql+pymysql://'mlflow':'mlflow'@db:3306/mlflowruns
       --default-artifact-root http://127.0.0.1:5500/api/2.0/mlflow-artifacts/artifacts/experiments
       --gunicorn-opts "--log-level debug"
-
-# networks:
-#   default:
-#     name: mlflow-tracking-server-network
-#     external: true
+      
