@@ -14,5 +14,5 @@ WORKDIR /root/mlflow-tracking-server
 
 Copy startup_script.sh .
 
-ENTRYPOINT ["sh"]
-CMD ["startup_script.sh"]
+# ENTRYPOINT ["sh"]
+# CMD ["startup_script.sh"]
