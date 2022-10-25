@@ -108,23 +108,20 @@ docker-compose build
 docker-compose up
 ```
 
-![](https://i.imgur.com/fVQiEiN.png)
-
-
+![](https://i.imgur.com/jnRPdjR.png)
 
 check the docker container is running 🐳
 
 ```
 docker ps --format "{{.Names}}\t{{.Status}}"
 ```
-
-![](https://i.imgur.com/IZzmKUP.png)
+![](https://i.imgur.com/wUA2QJw.png)
 
 the artifact server is running.
-![](https://i.imgur.com/JzlgXQr.png)
+![](https://i.imgur.com/DLFzyFZ.png)
 
 the tracking server is running as well
-![](https://i.imgur.com/4PZ9he6.png)
+![](https://i.imgur.com/jmxdFfG.png)
 
 Every thing is up. Let's move to python code.  
 
