@@ -199,7 +199,8 @@ check the corresponding model registered from experiment.
 e.g. 
 ```mlflow models serve --no-conda -m "models:/power-forecasting-model/Production"```
 
-![](https://i.imgur.com/RatmSG8.png)
+![](https://i.imgur.com/suflYv7.png)
+
 
 3. send testing data for inference.
 
@@ -216,7 +217,9 @@ e.g.
 curl http://127.0.0.1:5000/invocations -X POST -H 'Content-Type: application/json' \
 -d '[{"temperature_00": 8.875944, "wind_direction_00": 97.246960, "wind_speed_00":11.665322, "temperature_08": 11.955358, "wind_direction_08": 98.636955, "wind_speed_08": 12.240791, "temperature_16": 14.668171, "wind_direction_16": 112.411930, "wind_speed_16": 9.737414}]'
 ```
-![](https://i.imgur.com/rehZkDe.png)
+
+![](https://i.imgur.com/iyCxuLV.png)
+
 
 
 ### serving by docker
@@ -225,12 +228,14 @@ curl http://127.0.0.1:5000/invocations -X POST -H 'Content-Type: application/jso
 
 ```mlflow models build-docker --model-uri "models:/power-forecasting-model/Production" --name "power-forecast-model-seving"```
 
-![](https://i.imgur.com/lB2rE1F.png)
+![](https://i.imgur.com/J3b8JAi.png)
+
 
 start docker container
 ```docker run -p 5001:8080 "power-forecast-model-seving"```
 
-![](https://i.imgur.com/LfpA6lO.png)
+![](https://i.imgur.com/KYH79E0.png)
+
 
 invoking `http://127.0.0.1:5001/invocations` for model prediction
 
@@ -238,5 +243,6 @@ invoking `http://127.0.0.1:5001/invocations` for model prediction
 curl http://127.0.0.1:5001/invocations -X POST -H 'Content-Type: application/json' \
 -d '[{"temperature_00": 8.875944, "wind_direction_00": 97.246960, "wind_speed_00":11.665322, "temperature_08": 11.955358, "wind_direction_08": 98.636955, "wind_speed_08": 12.240791, "temperature_16": 14.668171, "wind_direction_16": 112.411930, "wind_speed_16": 9.737414}]'
 ```
-![](https://i.imgur.com/2qhajLi.png)
+
+![](https://i.imgur.com/bQM4NFh.png)
 
