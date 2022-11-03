@@ -126,14 +126,15 @@ docker-compose build
 docker-compose up
 ```
 
-![](https://i.imgur.com/jnRPdjR.png)
+![](https://i.imgur.com/vHZfMpU.png)
+
 
 check the docker container is running 🐳
 
 ```
 docker ps --format "{{.Names}}\t{{.Status}}"
 ```
-![](https://i.imgur.com/wUA2QJw.png)
+![](https://i.imgur.com/z91v8Ak.png)
 
 the artifact server is running.
 ![](https://i.imgur.com/DLFzyFZ.png)
