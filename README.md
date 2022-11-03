@@ -25,6 +25,24 @@ ML 模型訓練由本地端的 python 專案負責。
 MLFlow Tracking Server 使用 MySQL backend store 儲存模型訓練實驗相關的資料。
 MLFlow Tracking Server 使用 local file Artifact Server 儲存 model / data 等大型物件。
 
+#### Official architecture design:
+Based on official architecture suggestion, this design is similar to [Scenario 5: Tracking Server enable with proxied artifact storage access](https://www.mlflow.org/docs/latest/tracking.html#scenario-5-mlflow-tracking-server-enabled-with-proxied-artifact-storage-access)
+![](https://i.imgur.com/grwLHmi.png)
+
+> We use tracking server as a proxy server to access artifact storage. While official scenario provide example to connect to s3 stoage, here we run artifact server at local(localhost:5500).
+
+Official instruction about using tracking server.
+https://www.mlflow.org/docs/latest/tracking.html#using-the-tracking-server-for-proxied-artifact-access
+
+To use mlflow tracking server as proxied artifact. using flag `--serve-artifacts`
+
+![](https://i.imgur.com/UsrzpMZ.png)
+
+Set the path to record artifacts by `--artifacts-destination`
+
+![](https://i.imgur.com/O2oEfDy.png)
+
+here is going to set URI if destination, e.g. S3, HDFS, etc. 
 
 #### APP
 
