@@ -1,15 +1,5 @@
 version: '3.9'
 services:
-  nginx:
-    image: nginx
-    # build: ./build-nginx/
-    ports:
-      - "7777:80"
-    volumes:
-      - type: bind
-        source: ./build-nginx/nginx.conf
-        target: /etc/nginx/nginx.conf
-
   db:
     image: mysql
     environment:
@@ -20,6 +10,8 @@ services:
       MYSQL_PASSWORD: mlflow
     ports:
       - "3316:3306"
+    volumes:
+      - ./mysql-data-persist:/var/lib/mysql
 
   mlflow-artifact-server:
     build: .
@@ -35,19 +27,21 @@ services:
       --gunicorn-opts "--log-level debug"
       --serve-artifacts
       --artifacts-only
+    volumes:
+      - ./artifact-data-persist:/app/mlartifacts
     
-  minio:
-    build: ./build-minio
-    expose:
-      - "9000"
-    ports:
-      - "9000:9000"
-      - "9090:9090"
-    environment:
-      MINIO_ROOT_USER: mlflowminio
-      MINIO_ROOT_PASSWORD: mlflowminio
-    command: >
-      minio server /data --console-address ":9090"
+  # minio:
+  #   build: ./build-minio
+  #   expose:
+  #     - "9000"
+  #   ports:
+  #     - "9000:9000"
+  #     - "9090:9090"
+  #   environment:
+  #     MINIO_ROOT_USER: mlflowminio
+  #     MINIO_ROOT_PASSWORD: mlflowminio
+  #   command: >
+  #     minio server /data --console-address ":9090"
 
   mlflow:
     tty: true
@@ -66,3 +60,15 @@ services:
       --default-artifact-root http://127.0.0.1:5500/api/2.0/mlflow-artifacts/artifacts/experiments
       --gunicorn-opts "--log-level debug"
       
+  nginx:
+    image: nginx
+    # build: ./build-nginx/
+    ports:
+      - "7777:80"
+    volumes:
+      - type: bind
+        source: ./build-nginx/nginx.conf
+        target: /etc/nginx/nginx.conf
+    depends_on:
+      mlflow:
+        condition: service_started
