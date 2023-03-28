@@ -4,14 +4,14 @@ services:
     image: mysql
     environment:
       TZ: UTC
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: $MYSQL_ROOT_PASSWORD
       MYSQL_DATABASE: mlflowruns
-      MYSQL_USER: mlflow
-      MYSQL_PASSWORD: mlflow
+      MYSQL_USER: $MYSQL_USER
+      MYSQL_PASSWORD: $MYSQL_PASSWORD
     ports:
       - "3316:3306"
     volumes:
-      - ./mysql-data-persist:/var/lib/mysql
+      - ./container_volume_persist/mysql-data-persist:/var/lib/mysql
 
   mlflow-artifact-server:
     build: .
@@ -28,7 +28,7 @@ services:
       --serve-artifacts
       --artifacts-only
     volumes:
-      - ./artifact-data-persist:/app/mlartifacts
+      - ./container_volume_persist/artifact-data-persist:/app/mlartifacts
     
   # minio:
   #   build: ./build-minio
@@ -43,32 +43,38 @@ services:
   #   command: >
   #     minio server /data --console-address ":9090"
 
-  mlflow:
-    tty: true
-    build: .
-    ports:
-      - "5010:5000"
-    depends_on:
-      db:
-        condition: service_started
+  # mlflow:
+  #   tty: true
+  #   build: .
+  #   ports:
+  #     - "5010:5000"
+  #   depends_on:
+  #     db:
+  #       condition: service_started
 
-    command: >
-      mlflow server
-      --host 0.0.0.0
-      --port 5000
-      --backend-store-uri mysql+pymysql://'mlflow':'mlflow'@db:3306/mlflowruns
-      --default-artifact-root http://127.0.0.1:5500/api/2.0/mlflow-artifacts/artifacts/experiments
-      --gunicorn-opts "--log-level debug"
+  #   environment:
+  #     MLFLOW_TRACKING_INSECURE_TLS: 'false'
+
+  #   command: >
+  #     mlflow server
+  #     --host 0.0.0.0
+  #     --port 5000
+  #     --backend-store-uri mysql+pymysql://$MYSQL_USER:$MYSQL_PASSWORD@db:3306/mlflowruns
+  #     --default-artifact-root http://127.0.0.1:5500/api/2.0/mlflow-artifacts/artifacts/experiments
+  #     --gunicorn-opts "--log-level debug"
+
+  #   volumes:
+  #     - ./container_volume_persist/mlflow-server-static:/usr/local/lib/python3.7/site-packages/mlflow/server/js/build/static
       
-  nginx:
-    image: nginx
-    # build: ./build-nginx/
-    ports:
-      - "7777:80"
-    volumes:
-      - type: bind
-        source: ./build-nginx/nginx.conf
-        target: /etc/nginx/nginx.conf
-    depends_on:
-      mlflow:
-        condition: service_started
+  # nginx:
+  #   image: nginx
+  #   # build: ./build-nginx/
+  #   ports:
+  #     - "7777:80"
+  #   volumes:
+  #     - type: bind
+  #       source: ./build-nginx/nginx.conf
+  #       target: /etc/nginx/nginx.conf
+  #   depends_on:
+  #     mlflow:
+  #       condition: service_started
