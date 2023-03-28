@@ -1,0 +1,44 @@
+version: '3.9'
+services:
+  db:
+    image: mysql
+    environment:
+      TZ: UTC
+      MYSQL_ROOT_PASSWORD: $MYSQL_ROOT_PASSWORD
+      # MYSQL_DATABASE: mlflowruns
+      # MYSQL_USER: $MYSQL_USER
+      # MYSQL_PASSWORD: $MYSQL_PASSWORD
+    ports:
+      - "3316:3306"
+    volumes:
+      - ./container_volume_persist/mysql-data-persist:/var/lib/mysql
+
+  mlflow-artifact-server:
+    build: .
+    expose:
+      - "5500"
+    ports:
+      - "5500:5500"
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5500
+      --artifacts-destination ./mlartifacts
+      --gunicorn-opts "--log-level debug"
+      --serve-artifacts
+      --artifacts-only
+    volumes:
+      - ./container_volume_persist/artifact-data-persist:/app/mlartifacts
+    
+  # minio:
+  #   build: ./build-minio
+  #   expose:
+  #     - "9000"
+  #   ports:
+  #     - "9000:9000"
+  #     - "9090:9090"
+  #   environment:
+  #     MINIO_ROOT_USER: mlflowminio
+  #     MINIO_ROOT_PASSWORD: mlflowminio
+  #   command: >
+  #     minio server /data --console-address ":9090"
