@@ -11,6 +11,9 @@ services:
     ports:
       - "3316:3306"
     volumes:
+      - type: bind
+        source: ./my.cnf
+        target: /etc/my.cnf
       - ./container_volume_persist/mysql-data-persist:/var/lib/mysql
 
   mlflow-artifact-server:
