@@ -1,0 +1,4 @@
+./archived/
+./backend-storage/container_volume_persist/*
+./backend-storage/.env
+./tracking-server/.env
