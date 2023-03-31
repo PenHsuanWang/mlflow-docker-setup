@@ -1,0 +1,44 @@
+version: '3.9'
+services:
+
+  mlflow:
+    tty: true
+    build: .
+    ports:
+      - "5010:5000"
+
+    env_file:
+      - .env
+
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri mysql+pymysql://'${MLFLOW_TRACKING_USERNAME}':'${MLFLOW_TRACKING_PASSWORD}'@${MLFLOW_TRACKING_BACKEND_URL}:3316/${MLFLOW_TRACKING_BACKEND_DB}
+      --default-artifact-root ${MLFLOW_TRACKING_BACKEND_URL}:5500/api/2.0/mlflow-artifacts/artifacts/experiments
+      --gunicorn-opts "--log-level debug"
+
+    # volumes:
+    #   - ./container_volume_persist/mlflow-server-static:/usr/local/lib/python3.7/site-packages/mlflow/server/js/build/static
+      
+  nginx:
+    # image: nginx
+    build: ./build-nginx/
+    ports:
+      - "7777:80"
+    volumes:
+      - type: bind
+        source: ./build-nginx/nginx.conf
+        target: /etc/nginx/nginx.conf
+      - type: bind
+        source: ./webserver.sh
+        target: /webserver.sh
+    
+    env_file:
+      - .env
+
+    depends_on:
+      mlflow:
+        condition: service_started
+
+    command: /bin/bash /webserver.sh
