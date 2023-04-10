@@ -14,7 +14,7 @@ services:
       - type: bind
         source: ./my.cnf
         target: /etc/my.cnf
-      - ./container_volume_persist/mysql-data-persist:/var/lib/mysql
+      - ~/container_volume_persist/mysql-data-persist:/var/lib/mysql
 
   mlflow-artifact-server:
     build: .
@@ -31,7 +31,7 @@ services:
       --serve-artifacts
       --artifacts-only
     volumes:
-      - ./container_volume_persist/artifact-data-persist:/app/mlartifacts
+      - ~/container_volume_persist/artifact-data-persist:/app/mlartifacts
     
   # minio:
   #   build: ./build-minio
