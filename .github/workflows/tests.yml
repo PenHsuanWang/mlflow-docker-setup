@@ -20,6 +20,6 @@ jobs:
 
       - name: Build and run tests
         run: |
-          docker compose -f ./backend-storage/docker-compose.yaml build --abort-on-container-exit
-          docker compose -f ./backend-storage/docker-compose.yaml up --abort-on-container-exit
-          docker compose -f ./backend-storage/docker-compose.yaml down --abort-on-container-exit
+          docker-compose -f ./backend-storage/docker-compose.yaml build
+          docker-compose -f ./backend-storage/docker-compose.yaml up
+          docker-compose -f ./backend-storage/docker-compose.yaml down
