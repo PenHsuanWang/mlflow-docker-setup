@@ -1,4 +1,7 @@
-# Overview
+## Testing on backend storage docker compose
+[![Docker Compose Tests](https://github.com/PenHsuanWang/mlflow-docker-setup/actions/workflows/tests.yml/badge.svg)](https://github.com/PenHsuanWang/mlflow-docker-setup/actions/workflows/tests.yml)
+
+## Overview
 
 We are doing wonderful jobs on model training and now we are facing the problem in the next stage.  
 How to launch ML Services and go production gracefully? 
