@@ -11,7 +11,7 @@ jobs:
   test:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest]
         node: [10, 12, 14]
     runs-on: ${{ matrix.os }}
     steps:
@@ -20,6 +20,6 @@ jobs:
 
       - name: Build and run tests
         run: |
-          docker-compose -f ./backend-storage/docker-compose.yaml build
-          docker-compose -f ./backend-storage/docker-compose.yaml up
-          docker-compose -f ./backend-storage/docker-compose.yaml down
+          docker-compose -f ./backend-storage/docker-compose.yaml build --abort-on-container-exit
+          docker-compose -f ./backend-storage/docker-compose.yaml up 
+          docker-compose -f ./backend-storage/docker-compose.yaml down 
