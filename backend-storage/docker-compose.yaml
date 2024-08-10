@@ -2,6 +2,8 @@ version: '3.9'
 services:
   db:
     image: mysql
+    networks:
+      - shared_network
     environment:
       TZ: UTC
       MYSQL_ROOT_PASSWORD: $MYSQL_ROOT_PASSWORD
@@ -18,6 +20,8 @@ services:
 
   mlflow-artifact-server:
     build: .
+    networks:
+      - shared_network
     expose:
       - "5500"
     ports:
@@ -32,6 +36,31 @@ services:
       --artifacts-only
     volumes:
       - ~/container_volume_persist/artifact-data-persist:/app/mlartifacts
+
+  mlflow:
+    tty: true
+    build: .
+    networks:
+      - shared_network
+    ports:
+      - "5011:5001"
+
+    # network_mode: "host"
+
+    env_file:
+      - .env
+
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5001
+      --backend-store-uri mysql+pymysql://'${MLFLOW_BACKEND_DB_USERNAME}':'${MLFLOW_BACKEND_DB_PASSWORD}'@${MLFLOW_BACKEND_URL}:3316/${MLFLOW_BACKEND_DB}
+      --default-artifact-root http://${MLFLOW_ARTIFACT_URL}:5500/api/2.0/mlflow-artifacts/artifacts/experiments
+      --gunicorn-opts "--log-level debug"
+
+networks:
+  shared_network:
+    external: true
     
   # minio:
   #   build: ./build-minio
