@@ -12,7 +12,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        node: [16, 20] 
+        node: [16, 20]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -30,6 +30,18 @@ jobs:
         run: |
           docker --version
           docker-compose --version
+
+      - name: Create .env file
+        run: |
+          echo "MYSQL_ROOT_PASSWORD=mockpassword" >> ./backend-storage/.env
+          echo "MYSQL_DATABASE=mockdatabase" >> ./backend-storage/.env
+          echo "MYSQL_USER=mockuser" >> ./backend-storage/.env
+          echo "MYSQL_PASSWORD=mockuserpassword" >> ./backend-storage/.env
+          echo "MLFLOW_BACKEND_DB_USERNAME=mockuser" >> ./backend-storage/.env
+          echo "MLFLOW_BACKEND_DB_PASSWORD=mockpassword" >> ./backend-storage/.env
+          echo "MLFLOW_BACKEND_URL=mockdb" >> ./backend-storage/.env
+          echo "MLFLOW_BACKEND_DB=mockdatabase" >> ./backend-storage/.env
+          echo "MLFLOW_ARTIFACT_URL=mockartifactserver" >> ./backend-storage/.env
 
       - name: Build and run tests
         run: |
