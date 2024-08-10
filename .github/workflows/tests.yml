@@ -1,8 +1,8 @@
 name: Docker Compose Tests
 
 on:
-  - push
-  - pull_request
+  push:
+  pull_request:
 
 env:
   MYSQL_ROOT_PASSWORD: ${{secrets.MYSQL_ROOT_PASSWORD}}
@@ -12,11 +12,24 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        node: [10, 12, 14]
+        node: [16, 20] 
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v2
+
+      - name: Install Docker Compose
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y docker-compose
+
+      - name: Check Docker and Docker Compose versions
+        run: |
+          docker --version
+          docker-compose --version
 
       - name: Build and run tests
         run: |
