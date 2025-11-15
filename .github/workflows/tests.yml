@@ -1,53 +1,100 @@
-name: Docker Compose Tests
+name: MLflow Platform Tests
 
 on:
   push:
+    branches: [ main, develop ]
   pull_request:
-
-env:
-  MYSQL_ROOT_PASSWORD: ${{secrets.MYSQL_ROOT_PASSWORD}}
+    branches: [ main, develop ]
 
 jobs:
-  test:
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-        node: [16, 20]
-    runs-on: ${{ matrix.os }}
+  platform-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
-      - name: Set up Docker
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
-
-      - name: Install Docker Compose
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y docker-compose
 
       - name: Check Docker and Docker Compose versions
         run: |
           docker --version
           docker-compose --version
 
-      - name: Create .env file
+      - name: Validate platform configuration
         run: |
-          echo "MYSQL_ROOT_PASSWORD=mockpassword" >> ./backend-storage/.env
-          echo "MYSQL_DATABASE=mockdatabase" >> ./backend-storage/.env
-          echo "MYSQL_USER=mockuser" >> ./backend-storage/.env
-          echo "MYSQL_PASSWORD=mockuserpassword" >> ./backend-storage/.env
-          echo "MLFLOW_BACKEND_DB_USERNAME=mockuser" >> ./backend-storage/.env
-          echo "MLFLOW_BACKEND_DB_PASSWORD=mockpassword" >> ./backend-storage/.env
-          echo "MLFLOW_BACKEND_URL=mockdb" >> ./backend-storage/.env
-          echo "MLFLOW_BACKEND_DB=mockdatabase" >> ./backend-storage/.env
-          echo "MLFLOW_ARTIFACT_URL=mockartifactserver" >> ./backend-storage/.env
+          chmod +x ./validate-platform.sh
+          ./validate-platform.sh
 
-      - name: Build and run tests
+      - name: Build and start platform (core services)
         run: |
-          docker-compose -f ./backend-storage/docker-compose.yaml build --abort-on-container-exit
-          docker-compose -f ./backend-storage/docker-compose.yaml up -d
+          cd platform/compose
+          docker-compose -f docker-compose.core.yml -f docker-compose.dev.override.yml \
+            --env-file ../env/dev.env up -d --build
 
-      - name: Stop containers
+      - name: Wait for services to be healthy
         run: |
-          docker-compose -f ./backend-storage/docker-compose.yaml down 
+          echo "Waiting for services to become healthy..."
+          timeout 120 sh -c 'until docker ps | grep -q "mlflow-dev-db.*healthy"; do sleep 2; done'
+          echo "Database is healthy"
+          
+          # Give MLflow services time to fully start
+          sleep 30
+
+      - name: Run comprehensive tests
+        run: |
+          chmod +x ./test-platform.sh
+          ./test-platform.sh
+
+      - name: Test MLflow API
+        run: |
+          # Test experiments endpoint
+          curl -f http://localhost:5011/api/2.0/mlflow/experiments/search?max_results=10
+          
+          # Test health endpoints
+          curl -f http://localhost:5500/health
+          curl -f http://localhost:5011/health
+
+      - name: Display container logs on failure
+        if: failure()
+        run: |
+          echo "=== DB Logs ==="
+          docker logs mlflow-dev-db --tail 100
+          echo "=== Artifact Logs ==="
+          docker logs mlflow-dev-artifact --tail 100
+          echo "=== Tracking Logs ==="
+          docker logs mlflow-dev-tracking --tail 100
+
+      - name: Stop and cleanup
+        if: always()
+        run: |
+          cd platform/compose
+          docker-compose -f docker-compose.core.yml -f docker-compose.dev.override.yml \
+            --env-file ../env/dev.env down -v
+
+  legacy-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true  # Legacy tests are optional
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Test legacy backend-storage (deprecated)
+        run: |
+          echo "Testing legacy setup for backwards compatibility..."
+          if [ -f ./backend-storage/docker-compose.yaml ]; then
+            echo "MYSQL_ROOT_PASSWORD=testpassword" >> ./backend-storage/.env
+            echo "MYSQL_DATABASE=mlflow" >> ./backend-storage/.env
+            echo "MYSQL_USER=mlflow" >> ./backend-storage/.env
+            echo "MYSQL_PASSWORD=testpassword" >> ./backend-storage/.env
+            
+            docker-compose -f ./backend-storage/docker-compose.yaml up -d || true
+            sleep 20
+            docker-compose -f ./backend-storage/docker-compose.yaml down || true
+          else
+            echo "Legacy setup not found - skipping"
+          fi 

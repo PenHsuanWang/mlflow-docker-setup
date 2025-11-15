@@ -1,0 +1,98 @@
+version: '3.9'
+
+services:
+  db:
+    build:
+      context: ../services/db
+      dockerfile: Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-mlflow}-db
+    networks:
+      - mlops_net
+    environment:
+      TZ: UTC
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-mlflow}
+      MYSQL_USER: ${MYSQL_USER:-mlflow}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-mlflow}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ../services/db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  artifact:
+    build:
+      context: ../services/artifact
+      dockerfile: Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-mlflow}-artifact
+    networks:
+      - mlops_net
+    expose:
+      - "5500"
+    volumes:
+      - artifact_data:/app/mlartifacts
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5500
+      --artifacts-destination /app/mlartifacts
+      --gunicorn-opts "--log-level ${GUNICORN_LOG_LEVEL:-info}"
+      --serve-artifacts
+      --artifacts-only
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5500/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  tracking:
+    build:
+      context: ../services/tracking
+      dockerfile: Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-mlflow}-tracking
+    networks:
+      - mlops_net
+    expose:
+      - "5001"
+    environment:
+      MLFLOW_BACKEND_STORE_URI: ${MLFLOW_BACKEND_STORE_URI}
+      MLFLOW_ARTIFACT_ROOT: ${MLFLOW_ARTIFACT_ROOT}
+    depends_on:
+      db:
+        condition: service_healthy
+      artifact:
+        condition: service_started
+    command: >
+      sh -c "/app/wait-for.sh db:3306 -t 60 -- 
+      /app/wait-for.sh artifact:5500 -t 60 -- 
+      mlflow server 
+      --host 0.0.0.0 
+      --port 5001 
+      --backend-store-uri $${MLFLOW_BACKEND_STORE_URI}
+      --default-artifact-root $${MLFLOW_ARTIFACT_ROOT}
+      --gunicorn-opts '--log-level ${GUNICORN_LOG_LEVEL:-info}'"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+networks:
+  mlops_net:
+    driver: bridge
+    name: ${COMPOSE_PROJECT_NAME:-mlflow}_mlops_net
+
+volumes:
+  mysql_data:
+    name: ${COMPOSE_PROJECT_NAME:-mlflow}_mysql_data
+  artifact_data:
+    name: ${COMPOSE_PROJECT_NAME:-mlflow}_artifact_data

@@ -1,251 +1,194 @@
-## Testing on backend storage docker compose
+## MLflow Docker Setup - Production-Ready Platform
 [![Docker Compose Tests](https://github.com/PenHsuanWang/mlflow-docker-setup/actions/workflows/tests.yml/badge.svg)](https://github.com/PenHsuanWang/mlflow-docker-setup/actions/workflows/tests.yml)
+
+> **📣 New Unified Platform Architecture!**  
+> The project has been refactored into a unified `platform/` structure with improved security, networking, and deployment options. See [MIGRATION.md](MIGRATION.md) for upgrade instructions.
 
 ## Overview
 
-We are doing wonderful jobs on model training and now we are facing the problem in the next stage.  
-How to launch ML Services and go production gracefully? 
-That is the point why we are seeking do the solution called Model Ops or MLOps. The availability to do Run to Run compare, Version control, Model Stagging, and Rollback should be put on the table for consideration.  
+A complete, production-ready MLflow infrastructure using Docker Compose. This setup provides:
 
-### What we are going to do.
+✅ **MLflow Tracking Server** - Experiment tracking and model versioning  
+✅ **MySQL Backend** - Persistent metadata storage with health checks  
+✅ **Artifact Server** - Dedicated artifact storage service  
+✅ **NGINX Reverse Proxy** - Secure UI access with authentication  
+✅ **TLS/HTTPS Ready** - Certificate configuration support  
+✅ **Development & Production Modes** - Flexible deployment options  
 
-* Using MLFlow Tracking Server for model versioning control and experiment tracing.
-* Build MLFlow Tracking Server affiliate with MySQL backend-store by `docker-compose`
-* Doing Model training using python code, and regist to mlflow tracking server.
-* Using `mlflow models serve` to run MLFlow tracking server and artifact server.
+## Quick Start
+
+### Option 1: Interactive Quick Start (Recommended)
+
+```bash
+./quick-start.sh
+```
+
+### Option 2: Manual Start
+
+**Development (Direct Access):**
+```bash
+cd platform/compose
+docker compose -f docker-compose.core.yml --env-file ../env/dev.env up -d
+```
+Access at: `http://localhost:5011`
+
+**Production (With Proxy & Auth):**
+```bash
+cd platform/compose
+docker compose -f docker-compose.core.yml -f docker-compose.proxy.yml \
+  --env-file ../env/dev.env --profile proxy up -d
+```
+Access at: `http://localhost:7777` (user: admin, pass: admin123)
+
+## Documentation
+
+- **[Platform README](platform/README.md)** - Complete operational guide
+- **[Migration Guide](MIGRATION.md)** - Upgrade from legacy setup
+- **[Architecture Analysis](ARCHITECTURE_ANALYSIS.md)** - Technical deep dive
+- **[Design Document](detail_design_document.md)** - Refactoring rationale
+
+## What We Provide
+
+* **MLflow Tracking Server** - Model versioning control and experiment tracing
+* **MySQL Backend Store** - Persistent storage for experiment metadata
+* **Artifact Server** - Scalable storage for models, data, and large objects
+* **NGINX Reverse Proxy** - Secure access with Basic Auth and TLS support
+* **Health Checks** - Automatic dependency management and readiness detection
+* **Multiple Deployment Modes** - Development, staging, and production configurations
 
 
 
-# Hands-on
+## Architecture
 
-實作架構
+### Official MLflow Design Pattern
 
-![](https://i.imgur.com/wfVeUdS.png)
+This implementation follows [MLflow Scenario 5: Tracking Server with Proxied Artifact Storage](https://www.mlflow.org/docs/latest/tracking.html#scenario-5-mlflow-tracking-server-enabled-with-proxied-artifact-storage).
 
-ML 模型訓練由本地端的 python 專案負責。
-通過 MLFlow Client 連至運行於 docker container 內的 MLFlow Tracking Server.
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    MLflow Platform Services                      │
+│                                                                   │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │              mlops_net (internal bridge)                  │   │
+│  │                                                            │   │
+│  │  ┌─────────┐    ┌──────────┐    ┌───────────┐           │   │
+│  │  │   db    │◄───│ artifact │◄───│ tracking  │           │   │
+│  │  │ :3306   │    │  :5500   │    │  :5001    │           │   │
+│  │  └─────────┘    └──────────┘    └─────▲─────┘           │   │
+│  │                                        │                  │   │
+│  │                              ┌─────────┴────────┐        │   │
+│  │                              │  proxy (nginx)   │        │   │
+│  │                              │  :80 / :443      │        │   │
+│  │                              └──────────────────┘        │   │
+│  └──────────────────────────────────────┼───────────────────┘   │
+│                                          │                       │
+│                    mlops_public ─────────┘                       │
+│                                                                   │
+└───────────────────────────────────┬─────────────────────────────┘
+                                    │
+                         Host: 7777 (HTTP) / 7443 (HTTPS)
+                              5011 (Direct - Dev only)
+```
 
-MLFlow Tracking Server 使用 MySQL backend store 儲存模型訓練實驗相關的資料。
-MLFlow Tracking Server 使用 local file Artifact Server 儲存 model / data 等大型物件。
+### Key Features
 
-#### Official architecture design:
-Based on official architecture suggestion, this design is similar to [Scenario 5: Tracking Server enable with proxied artifact storage access](https://www.mlflow.org/docs/latest/tracking.html#scenario-5-mlflow-tracking-server-enabled-with-proxied-artifact-storage-access)
-![](https://i.imgur.com/grwLHmi.png)
+1. **Network Segregation**: Internal `mlops_net` for service communication, `mlops_public` for ingress
+2. **Service Naming**: Unique names (`db`, `artifact`, `tracking`, `proxy`) avoid DNS conflicts
+3. **Health Checks**: MySQL healthcheck + wait-for scripts ensure proper startup order
+4. **Security**: NGINX Basic Auth, TLS-ready, proper X-Forwarded headers
+5. **Flexibility**: Profile-based deployment (with/without proxy)
 
-> We use tracking server as a proxy server to access artifact storage. While official scenario provide example to connect to s3 stoage, here we run artifact server at local(localhost:5500).
 
-Official instruction about using tracking server.
-https://www.mlflow.org/docs/latest/tracking.html#using-the-tracking-server-for-proxied-artifact-access
+## ML Client Usage
 
-To use mlflow tracking server as proxied artifact. using flag `--serve-artifacts`
+### Python Example
 
-![](https://i.imgur.com/UsrzpMZ.png)
+```python
+import mlflow
+import os
 
-Set the path to record artifacts by `--artifacts-destination`
+# Configure tracking URI
+mlflow.set_tracking_uri("http://localhost:5011")  # Direct (dev)
+# or
+mlflow.set_tracking_uri("http://localhost:7777")  # Via proxy (prod)
 
-![](https://i.imgur.com/O2oEfDy.png)
+# For proxy auth (production)
+os.environ["MLFLOW_TRACKING_USERNAME"] = "admin"
+os.environ["MLFLOW_TRACKING_PASSWORD"] = "admin123"
 
-here is going to set URI if destination, e.g. S3, HDFS, etc. 
+# Create experiment
+mlflow.set_experiment("my-experiment")
 
-#### APP
-
-* Tracking Server & Artifact Server 使用 python3.7 的 base image 作為基底。再安裝 mlflow 以及 pymysql 套件。
-* MySQL 使用官方提供的 based image
-
-docker compose file 的完整設置
-
-```yaml!
-version: '3.9'
-services:
-  db:
-    image: mysql
-    environment:
-      TZ: UTC
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: mlflowruns
-      MYSQL_USER: mlflow
-      MYSQL_PASSWORD: mlflow
-    ports:
-      - "3316:3306"
-
-  mlflow-artifact-server:
-    build: .
-    expose:
-      - "5500"
-    ports:
-      - "5500:5500"
-    command: >
-      mlflow server
-      --host 0.0.0.0
-      --port 5500
-      --artifacts-destination ./mlartifacts
-      --gunicorn-opts "--log-level debug"
-      --serve-artifacts
-      --artifacts-only
+# Log experiment
+with mlflow.start_run():
+    # Log parameters
+    mlflow.log_param("alpha", 0.5)
+    mlflow.log_param("l1_ratio", 0.1)
     
-  mlflow:
-    tty: true
-    build: .
-    ports:
-      - "5010:5000"
-    depends_on:
-      db:
-        condition: service_started
-
-    command: >
-      mlflow server
-      --host 0.0.0.0
-      --port 5000
-      --backend-store-uri mysql+pymysql://'mlflow':'mlflow'@db:3306/mlflowruns
-      --default-artifact-root http://127.0.0.1:5500/api/2.0/mlflow-artifacts/artifacts/experiments
-      --gunicorn-opts "--log-level debug"
+    # Log metrics
+    mlflow.log_metric("rmse", 0.87)
+    mlflow.log_metric("r2", 0.92)
+    
+    # Log model
+    mlflow.sklearn.log_model(model, "model")
 ```
 
-Docker file for run mlflow serve
+### Register and Deploy Models
 
-```dockerfile!
-FROM python:3.7
+```bash
+# Set tracking server
+export MLFLOW_TRACKING_URI=http://localhost:5011
 
-WORKDIR /app
+# Serve model locally
+mlflow models serve --no-conda -m "models:/my-model/Production" -p 5002
 
-# Install mlflow
-RUN pip install mlflow pymysql cryptography
+# Build Docker image for model serving
+mlflow models build-docker -m "models:/my-model/Production" -n "my-model-serving"
+
+# Run model serving container
+docker run -p 5002:8080 my-model-serving
 ```
 
+### Make Predictions
 
-# Workflow:
-
-Using `docker-compose`  
-you can fetch the docker-compose build files from my github  
-
-```
-git clone https://github.com/PenHsuanWang/mlflow-docker-setup.git && cd mlflow-docker-setup
+```bash
+# Test prediction endpoint
+curl http://localhost:5002/invocations -X POST -H 'Content-Type: application/json' \
+  -d '[{"feature1": 1.0, "feature2": 2.0}]'
 ```
 
-build and start up the docker compose
+## Common Operations
 
-```
-docker-compose build
-docker-compose up
-```
-
-![](https://i.imgur.com/vHZfMpU.png)
-
-
-check the docker container is running 🐳
-
-```
-docker ps --format "{{.Names}}\t{{.Status}}"
-```
-![](https://i.imgur.com/z91v8Ak.png)
-
-the artifact server is running.
-![](https://i.imgur.com/DLFzyFZ.png)
-
-the tracking server is running as well
-![](https://i.imgur.com/jmxdFfG.png)
-
-Every thing is up. Let's move to python code.  
-
-### Connect to tracking server from python project
-
-using mlflow api `set_tracking_uri(<url of tracking server>)` to connect to tracking server.
-
-![](https://i.imgur.com/sqF8jdA.png)
-
-![](https://i.imgur.com/ofw6yBM.png)
-
-
-### Saving the ML Experiment log/metrics/metadata at `db` container (mysql)
-
-Onec we start to run the ml model training experiment. if we using mlflow.model.autolog() inside the `mlflow.start_run()` context manager block, the model will be log into tracking server (using mysql db as backend store).
-Check the mysql db.
-
-The experiment metadata will be saved in `mlflowruns`
-
-![](https://i.imgur.com/qnVXOFw.png)
-
-![](https://i.imgur.com/XVIdXBH.png)
-
-![](https://i.imgur.com/qzeGKY1.png)  
-
-### Check Experiment from mlflow UI
-connect to mlflow server (where we start server at port 5000 in the container, but we expose to 5010 port on localhost.)
-
-connect to : http://127.0.0.1:5010
-
-![](https://i.imgur.com/yxgUWds.png)
-
-check the experiment we create from python code 
-![](https://i.imgur.com/1Mpy6Q5.png)
-
-you can check the metrics logged during the experiemnt, e.g. loss.
-
-![](https://i.imgur.com/shpvexG.png)
-
-check the corresponding model registered from experiment.
-
-![](https://i.imgur.com/YXLGg9d.png)
-
-![](https://i.imgur.com/tHUqCzy.png)
-
-### Deploy MLFlow Model Serving at local REST endpoint
-
-[official docs.](https://www.mlflow.org/docs/latest/models.html#deploy-mlflow-models)
-
-
-1. setting mlflow server url.
-```export MLFLOW_TRACKING_URI=http://127.0.0.1:5010```
-
-2. start mlflow models serve.
-```mlflow models serve --no-conda -m <model uri>/<Stage>```
-e.g. 
-```mlflow models serve --no-conda -m "models:/power-forecasting-model/Production"```
-
-![](https://i.imgur.com/suflYv7.png)
-
-
-3. send testing data for inference.
-
-provided endpoint:
-> The REST API defines 4 endpoints:
-> 
-> /ping used for health check
-> /health (same as /ping)
-> /version used for getting the mlflow version
-> /invocations used for scoring
-
-e.g.
-```
-curl http://127.0.0.1:5000/invocations -X POST -H 'Content-Type: application/json' \
--d '[{"temperature_00": 8.875944, "wind_direction_00": 97.246960, "wind_speed_00":11.665322, "temperature_08": 11.955358, "wind_direction_08": 98.636955, "wind_speed_08": 12.240791, "temperature_16": 14.668171, "wind_direction_16": 112.411930, "wind_speed_16": 9.737414}]'
+### View Logs
+```bash
+cd platform/compose
+docker compose -f docker-compose.core.yml logs -f tracking
 ```
 
-![](https://i.imgur.com/iyCxuLV.png)
-
-
-
-### serving by docker
-
-[official docs](https://www.mlflow.org/docs/latest/cli.html#mlflow-models-build-docker)
-
-```mlflow models build-docker --model-uri "models:/power-forecasting-model/Production" --name "power-forecast-model-seving"```
-
-![](https://i.imgur.com/J3b8JAi.png)
-
-
-start docker container
-```docker run -p 5001:8080 "power-forecast-model-seving"```
-
-![](https://i.imgur.com/KYH79E0.png)
-
-
-invoking `http://127.0.0.1:5001/invocations` for model prediction
-
-```
-curl http://127.0.0.1:5001/invocations -X POST -H 'Content-Type: application/json' \
--d '[{"temperature_00": 8.875944, "wind_direction_00": 97.246960, "wind_speed_00":11.665322, "temperature_08": 11.955358, "wind_direction_08": 98.636955, "wind_speed_08": 12.240791, "temperature_16": 14.668171, "wind_direction_16": 112.411930, "wind_speed_16": 9.737414}]'
+### Database Access
+```bash
+docker exec -it mlflow-dev-db mysql -u mlflow -p
 ```
 
-![](https://i.imgur.com/bQM4NFh.png)
+### Stop Services
+```bash
+cd platform/compose
+docker compose -f docker-compose.core.yml down
+```
+
+## Troubleshooting
+
+See [platform/README.md](platform/README.md) for detailed troubleshooting guide.
+
+## Legacy Setup
+
+The old `backend-storage` and `tracking-server` directories are deprecated. See [MIGRATION.md](MIGRATION.md) to upgrade to the new platform architecture.
+
+## Contributing
+
+Issues and pull requests are welcome! Please see the architecture documentation before making major changes.
+
+## License
+
+This project is open source and available under the MIT License.
 

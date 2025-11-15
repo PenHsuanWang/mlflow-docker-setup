@@ -1,0 +1,41 @@
+version: '3.9'
+
+services:
+  proxy:
+    build:
+      context: ../services/proxy
+      dockerfile: Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-mlflow}-proxy
+    networks:
+      - mlops_net
+      - mlops_public
+    ports:
+      - "7777:80"
+      # Uncomment when TLS is configured
+      # - "7443:443"
+    environment:
+      MLFLOW_TRACKING_USERNAME: ${MLFLOW_TRACKING_USERNAME}
+      MLFLOW_TRACKING_PASSWORD: ${MLFLOW_TRACKING_PASSWORD}
+    volumes:
+      # Mount for persistent htpasswd (optional)
+      - proxy_auth:/etc/nginx/auth
+      # Mount for TLS certificates (add your certs here)
+      - ../services/proxy/certs:/etc/nginx/certs:ro
+    depends_on:
+      tracking:
+        condition: service_started
+    profiles:
+      - proxy
+    restart: unless-stopped
+
+networks:
+  mlops_net:
+    external: true
+    name: ${COMPOSE_PROJECT_NAME:-mlflow}_mlops_net
+  mlops_public:
+    driver: bridge
+    name: ${COMPOSE_PROJECT_NAME:-mlflow}_mlops_public
+
+volumes:
+  proxy_auth:
+    name: ${COMPOSE_PROJECT_NAME:-mlflow}_proxy_auth

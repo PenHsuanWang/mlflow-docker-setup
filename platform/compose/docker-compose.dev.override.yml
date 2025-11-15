@@ -1,0 +1,29 @@
+version: '3.9'
+
+# Development overrides for local testing
+# Use with: docker compose -f docker-compose.core.yml -f docker-compose.dev.override.yml up
+
+services:
+  db:
+    ports:
+      # Expose MySQL on host for debugging
+      - "3316:3306"
+    volumes:
+      # Use local directory for easier inspection in dev
+      - ../volumes/mysql-dev:/var/lib/mysql
+
+  artifact:
+    ports:
+      # Expose artifact server directly on host for testing
+      - "5500:5500"
+    volumes:
+      # Use local directory for easier artifact inspection
+      - ../volumes/artifacts-dev:/app/mlartifacts
+
+  tracking:
+    ports:
+      # Expose tracking server directly on host (bypassing proxy)
+      - "5011:5001"
+    environment:
+      # Enable debug mode
+      MLFLOW_TRACKING_INSECURE_TLS: "true"
