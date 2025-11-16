@@ -1,68 +1,19 @@
-## MLflow Docker Setup - Production-Ready Platform
-[![Docker Compose Tests](https://github.com/PenHsuanWang/mlflow-docker-setup/actions/workflows/tests.yml/badge.svg)](https://github.com/PenHsuanWang/mlflow-docker-setup/actions/workflows/tests.yml)
+## MLflow Docker Setup – Unified Platform
+[![CI](https://github.com/PenHsuanWang/mlflow-docker-setup/actions/workflows/tests.yml/badge.svg)](https://github.com/PenHsuanWang/mlflow-docker-setup/actions/workflows/tests.yml)
 
-> **📣 New Unified Platform Architecture!**  
-> The project has been refactored into a unified `platform/` structure with improved security, networking, and deployment options. See [MIGRATION.md](MIGRATION.md) for upgrade instructions.
+> **📣 New unified `platform/` stack** – The legacy `backend-storage/` and `tracking-server/` folders are deprecated. Use the instructions below or see [MIGRATION.md](MIGRATION.md) if you still need the old layout.
 
-## Overview
+## 1. Overview
 
-A complete, production-ready MLflow infrastructure using Docker Compose. This setup provides:
+This repository delivers a production-ready MLflow deployment composed of:
 
-✅ **MLflow Tracking Server** - Experiment tracking and model versioning  
-✅ **MySQL Backend** - Persistent metadata storage with health checks  
-✅ **Artifact Server** - Dedicated artifact storage service  
-✅ **NGINX Reverse Proxy** - Secure UI access with authentication  
-✅ **TLS/HTTPS Ready** - Certificate configuration support  
-✅ **Development & Production Modes** - Flexible deployment options  
+- **MLflow Tracking Server** – experiment tracking, registry, REST API
+- **MySQL Backend Store** – persistent metadata with health checks
+- **Artifact Server (port 5500)** – dedicated artifact storage via MLflow Scenario 5
+- **NGINX Reverse Proxy** – Basic Auth, TLS-ready ingress for the UI/API
+- **Profile-based Compose files** – simple dev/prod toggles, consistent networking
 
-## Quick Start
-
-### Option 1: Interactive Quick Start (Recommended)
-
-```bash
-./quick-start.sh
-```
-
-### Option 2: Manual Start
-
-**Development (Direct Access):**
-```bash
-cd platform/compose
-docker compose -f docker-compose.core.yml --env-file ../env/dev.env up -d
-```
-Access at: `http://localhost:5011`
-
-**Production (With Proxy & Auth):**
-```bash
-cd platform/compose
-docker compose -f docker-compose.core.yml -f docker-compose.proxy.yml \
-  --env-file ../env/dev.env --profile proxy up -d
-```
-Access at: `http://localhost:7777` (user: admin, pass: admin123)
-
-## Documentation
-
-- **[Platform README](platform/README.md)** - Complete operational guide
-- **[Migration Guide](MIGRATION.md)** - Upgrade from legacy setup
-- **[Architecture Analysis](ARCHITECTURE_ANALYSIS.md)** - Technical deep dive
-- **[Design Document](detail_design_document.md)** - Refactoring rationale
-
-## What We Provide
-
-* **MLflow Tracking Server** - Model versioning control and experiment tracing
-* **MySQL Backend Store** - Persistent storage for experiment metadata
-* **Artifact Server** - Scalable storage for models, data, and large objects
-* **NGINX Reverse Proxy** - Secure access with Basic Auth and TLS support
-* **Health Checks** - Automatic dependency management and readiness detection
-* **Multiple Deployment Modes** - Development, staging, and production configurations
-
-
-
-## Architecture
-
-### Official MLflow Design Pattern
-
-This implementation follows [MLflow Scenario 5: Tracking Server with Proxied Artifact Storage](https://www.mlflow.org/docs/latest/tracking.html#scenario-5-mlflow-tracking-server-enabled-with-proxied-artifact-storage).
+Architecture summary (details in [detail_design_document.md](detail_design_document.md)):
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -90,105 +41,135 @@ This implementation follows [MLflow Scenario 5: Tracking Server with Proxied Art
                               5011 (Direct - Dev only)
 ```
 
-### Key Features
+## 2. Quick Start
 
-1. **Network Segregation**: Internal `mlops_net` for service communication, `mlops_public` for ingress
-2. **Service Naming**: Unique names (`db`, `artifact`, `tracking`, `proxy`) avoid DNS conflicts
-3. **Health Checks**: MySQL healthcheck + wait-for scripts ensure proper startup order
-4. **Security**: NGINX Basic Auth, TLS-ready, proper X-Forwarded headers
-5. **Flexibility**: Profile-based deployment (with/without proxy)
-
-
-## ML Client Usage
-
-### Python Example
-
-```python
-import mlflow
-import os
-
-# Configure tracking URI
-mlflow.set_tracking_uri("http://localhost:5011")  # Direct (dev)
-# or
-mlflow.set_tracking_uri("http://localhost:7777")  # Via proxy (prod)
-
-# For proxy auth (production)
-os.environ["MLFLOW_TRACKING_USERNAME"] = "admin"
-os.environ["MLFLOW_TRACKING_PASSWORD"] = "admin123"
-
-# Create experiment
-mlflow.set_experiment("my-experiment")
-
-# Log experiment
-with mlflow.start_run():
-    # Log parameters
-    mlflow.log_param("alpha", 0.5)
-    mlflow.log_param("l1_ratio", 0.1)
-    
-    # Log metrics
-    mlflow.log_metric("rmse", 0.87)
-    mlflow.log_metric("r2", 0.92)
-    
-    # Log model
-    mlflow.sklearn.log_model(model, "model")
-```
-
-### Register and Deploy Models
-
+### Option A – Interactive script
 ```bash
-# Set tracking server
-export MLFLOW_TRACKING_URI=http://localhost:5011
-
-# Serve model locally
-mlflow models serve --no-conda -m "models:/my-model/Production" -p 5002
-
-# Build Docker image for model serving
-mlflow models build-docker -m "models:/my-model/Production" -n "my-model-serving"
-
-# Run model serving container
-docker run -p 5002:8080 my-model-serving
+./quick-start.sh
 ```
 
-### Make Predictions
-
+### Option B – Manual Docker Compose
 ```bash
-# Test prediction endpoint
-curl http://localhost:5002/invocations -X POST -H 'Content-Type: application/json' \
-  -d '[{"feature1": 1.0, "feature2": 2.0}]'
+cd platform/compose
+
+# Development (direct access, no proxy)
+docker compose -f docker-compose.core.yml \
+  --env-file ../env/dev.env up -d
+# UI → http://localhost:5011
+
+# Production-style (proxy + auth + TLS-ready)
+docker compose -f docker-compose.core.yml -f docker-compose.proxy.yml \
+  --env-file ../env/prod.env --profile proxy up -d
+# UI → http://localhost:7777  (credentials from env file)
+
+# Development with host volumes and extra logging
+docker compose -f docker-compose.core.yml -f docker-compose.dev.override.yml \
+  --env-file ../env/dev.env up -d
 ```
 
-## Common Operations
+To stop everything:
+```bash
+cd platform/compose
+docker compose -f docker-compose.core.yml down
+docker compose -f docker-compose.core.yml -f docker-compose.proxy.yml --profile proxy down
+```
 
-### View Logs
+## 3. Environment & Secrets
+
+1. Copy `platform/env/base.env` to `platform/env/.env.local` and customize (never commit `.env.local`).
+2. Required values:
+   - `MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD`, `MLFLOW_DB_PASSWORD`
+   - `MLFLOW_TRACKING_USERNAME`, `MLFLOW_TRACKING_PASSWORD`
+   - Optional TLS paths for proxy when HTTPS is enabled
+3. Load different env files via `--env-file ../env/dev.env` or `../env/prod.env`.
+
+## 4. Service Reference
+
+| Service  | Container Port | Default Host Port (dev) | Description |
+|----------|----------------|-------------------------|-------------|
+| `db`     | 3306           | 3316                    | MySQL backend store supporting MLflow registry |
+| `artifact` | 5500        | 5500                    | MLflow artifact server (`--artifacts-only`) |
+| `tracking` | 5001        | 5011                    | MLflow tracking UI/API (direct access in dev) |
+| `proxy`  | 80 / 443      | 7777 / 7443             | NGINX reverse proxy with Basic Auth + TLS |
+
+- Internal networking: all services join `mlops_net`; only `proxy` attaches to `mlops_public`.
+- Health/order: MySQL exposes a healthcheck, and `tracking` waits for both DB and artifact endpoints.
+
+## 5. Access & Testing
+
+### UI access
+- **Dev**: `http://localhost:5011`
+- **Proxy**: `http://localhost:7777` or `https://localhost:7443`
+
+### API smoke test
+```bash
+# Experiment list
+curl -f http://localhost:5011/api/2.0/mlflow/experiments/search?max_results=5
+# Health endpoints
+curl -f http://localhost:5500/health
+curl -f http://localhost:5011/health
+```
+
+### Logs & troubleshooting
 ```bash
 cd platform/compose
 docker compose -f docker-compose.core.yml logs -f tracking
+docker compose -f docker-compose.core.yml logs -f artifact
+docker compose -f docker-compose.core.yml logs -f db
 ```
 
-### Database Access
+### Database shell
 ```bash
 docker exec -it mlflow-dev-db mysql -u mlflow -p
 ```
 
-### Stop Services
-```bash
-cd platform/compose
-docker compose -f docker-compose.core.yml down
+## 6. ML Client Usage
+
+```python
+import mlflow, os
+
+# Choose the correct endpoint
+mlflow.set_tracking_uri("http://localhost:5011")  # direct dev access
+# mlflow.set_tracking_uri("http://localhost:7777")  # via proxy / production
+
+os.environ["MLFLOW_TRACKING_USERNAME"] = "<user>"
+os.environ["MLFLOW_TRACKING_PASSWORD"] = "<pass>"
+
+mlflow.set_experiment("demo")
+with mlflow.start_run():
+    mlflow.log_param("alpha", 0.5)
+    mlflow.log_metric("rmse", 0.87)
+    mlflow.log_text("hello world", "notes.txt")
 ```
 
-## Troubleshooting
+Model serving workflow:
+```bash
+export MLFLOW_TRACKING_URI=http://localhost:5011
+mlflow models serve --no-conda -m "models:/power-forecasting-model/Production" -p 5002
+curl http://localhost:5002/invocations -X POST -H 'Content-Type: application/json' \
+  -d '[{"feature1":1.0,"feature2":2.0}]'
+```
 
-See [platform/README.md](platform/README.md) for detailed troubleshooting guide.
+## 7. Networking & Security Highlights
 
-## Legacy Setup
+- Internal traffic stays on `mlops_net`; only the proxy exposes ports.
+- `nginx` forwards `X-Forwarded-*` headers and supports TLS certificates mounted under `platform/services/proxy/certs`.
+- `webserver.sh` keeps `.htpasswd` persistent, so Basic Auth credentials survive restarts.
+- Dev overrides can expose MySQL (`3316:3306`) or artifact port for diagnostics; production mode keeps them internal.
 
-The old `backend-storage` and `tracking-server` directories are deprecated. See [MIGRATION.md](MIGRATION.md) to upgrade to the new platform architecture.
+## 8. Documentation Map
 
-## Contributing
+- [detail_design_document.md](detail_design_document.md) – rationale for the refactor
+- [ARCHITECTURE_ANALYSIS.md](ARCHITECTURE_ANALYSIS.md) – in-depth current-state review
+- [MIGRATION.md](MIGRATION.md) – steps to move off legacy stacks
+- [TESTING_SUMMARY.md](TESTING_SUMMARY.md) / [TEST_REPORT.md](TEST_REPORT.md) – CI expectations
 
-Issues and pull requests are welcome! Please see the architecture documentation before making major changes.
+## 9. Contributing & Support
 
-## License
+- Run `validate-platform.sh` and `test-platform.sh` before opening PRs.
+- File issues with logs (`docker compose logs`) and environment details.
+- License: MIT.
 
-This project is open source and available under the MIT License.
+---
+All operational guidance now lives in this root README; `platform/README.md` simply points here to prevent drift.
 
