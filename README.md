@@ -52,26 +52,29 @@ Architecture summary (details in [detail_design_document.md](detail_design_docum
 ```bash
 cd platform/compose
 
-# Development (direct access, no proxy)
-docker compose -f docker-compose.core.yml \
+# Development (direct access with exposed ports)
+docker-compose -f docker-compose.core.yml -f docker-compose.dev.override.yml \
   --env-file ../env/dev.env up -d
 # UI → http://localhost:5011
+# Artifact Server → http://localhost:5500
+# MySQL → localhost:3316
 
 # Production-style (proxy + auth + TLS-ready)
-docker compose -f docker-compose.core.yml -f docker-compose.proxy.yml \
+docker-compose -f docker-compose.core.yml -f docker-compose.proxy.yml \
   --env-file ../env/prod.env --profile proxy up -d
 # UI → http://localhost:7777  (credentials from env file)
-
-# Development with host volumes and extra logging
-docker compose -f docker-compose.core.yml -f docker-compose.dev.override.yml \
-  --env-file ../env/dev.env up -d
 ```
 
 To stop everything:
 ```bash
 cd platform/compose
-docker compose -f docker-compose.core.yml down
-docker compose -f docker-compose.core.yml -f docker-compose.proxy.yml --profile proxy down
+# For development
+docker-compose -f docker-compose.core.yml -f docker-compose.dev.override.yml \
+  --env-file ../env/dev.env down
+
+# For production
+docker-compose -f docker-compose.core.yml -f docker-compose.proxy.yml \
+  --env-file ../env/prod.env --profile proxy down
 ```
 
 ## 3. Environment & Secrets
