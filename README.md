@@ -79,12 +79,88 @@ docker-compose -f docker-compose.core.yml -f docker-compose.proxy.yml \
 
 ## 3. Environment & Secrets
 
-1. Copy `platform/env/base.env` to `platform/env/.env.local` and customize (never commit `.env.local`).
-2. Required values:
-   - `MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD`, `MLFLOW_DB_PASSWORD`
-   - `MLFLOW_TRACKING_USERNAME`, `MLFLOW_TRACKING_PASSWORD`
-   - Optional TLS paths for proxy when HTTPS is enabled
-3. Load different env files via `--env-file ../env/dev.env` or `../env/prod.env`.
+The platform uses environment files to manage credentials and configuration. Three env files are provided:
+
+### Environment Files
+
+| File | Purpose | When to Use |
+|------|---------|-------------|
+| `platform/env/base.env` | Non-sensitive defaults | Template/reference only |
+| `platform/env/dev.env` | Development settings | Local testing and development |
+| `platform/env/prod.env` | Production template | Production deployments (customize first!) |
+
+### Key Environment Variables
+
+```bash
+# MySQL Database
+MYSQL_ROOT_PASSWORD=root_dev_password      # Root user password
+MYSQL_PASSWORD=mlflow_dev_password         # MLflow user password
+MYSQL_USER=mlflow                          # Database username (default: mlflow)
+MYSQL_DATABASE=mlflow                      # Database name
+
+# MLflow Backend Store Connection
+MLFLOW_BACKEND_STORE_URI=mysql+pymysql://mlflow:mlflow_dev_password@db:3306/mlflow
+
+# MLflow Tracking Authentication (for NGINX proxy)
+MLFLOW_TRACKING_USERNAME=admin             # Web UI username
+MLFLOW_TRACKING_PASSWORD=admin123          # Web UI password
+
+# Logging
+GUNICORN_LOG_LEVEL=debug                   # Options: debug, info, warning, error
+
+# Network
+COMPOSE_PROJECT_NAME=mlflow-dev            # Docker Compose project name
+```
+
+### Setup Instructions
+
+**For Development:**
+```bash
+# Use dev.env as-is, or customize if needed
+cd platform/compose
+docker-compose -f docker-compose.core.yml -f docker-compose.dev.override.yml \
+  --env-file ../env/dev.env up -d
+```
+
+**For Production:**
+```bash
+# 1. Create a local copy (not tracked by git)
+cp platform/env/prod.env platform/env/.env.local
+
+# 2. Edit .env.local with strong passwords
+nano platform/env/.env.local
+
+# 3. Update these values:
+#    MYSQL_ROOT_PASSWORD=<strong-password>
+#    MYSQL_PASSWORD=<strong-password>
+#    MLFLOW_TRACKING_USERNAME=<your-username>
+#    MLFLOW_TRACKING_PASSWORD=<strong-password>
+
+# 4. Launch with your custom config
+cd platform/compose
+docker-compose -f docker-compose.core.yml -f docker-compose.proxy.yml \
+  --env-file ../env/.env.local --profile proxy up -d
+```
+
+### Using Credentials
+
+When connecting to MySQL directly, use the password from your env file:
+
+```bash
+# For development (password: mlflow_dev_password)
+docker exec -it mlflow-dev-db mysql -u mlflow -p
+# Enter password: mlflow_dev_password
+
+# For production (password: from your .env.local)
+docker exec -it <container-name> mysql -u mlflow -p
+# Enter password: <your MYSQL_PASSWORD from .env.local>
+```
+
+**Security Best Practices:**
+- Never commit `.env.local` or files with real credentials
+- Use strong, unique passwords in production
+- Rotate credentials periodically
+- Consider using Docker secrets for production deployments
 
 ## 4. Service Reference
 
@@ -123,7 +199,13 @@ docker compose -f docker-compose.core.yml logs -f db
 
 ### Database shell
 ```bash
+# Connect to MySQL (password from env file)
 docker exec -it mlflow-dev-db mysql -u mlflow -p
+# Enter password when prompted: mlflow_dev_password (from dev.env)
+#                          or: <MYSQL_PASSWORD> (from your .env.local)
+
+# Alternative: View database status
+docker exec mlflow-dev-db mysql -u mlflow -pmlflow_dev_password -e "SHOW DATABASES;"
 ```
 
 ## 6. ML Client Usage
