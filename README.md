@@ -13,8 +13,17 @@ This repository delivers a production-ready MLflow deployment composed of:
 - **NGINX Reverse Proxy** – Basic Auth, TLS-ready ingress for the UI/API
 - **Profile-based Compose files** – simple dev/prod toggles, consistent networking
 
-Architecture summary (details in [detail_design_document.md](detail_design_document.md)):
+📖 **Documentation:**
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Complete architecture with network & volume diagrams
+- **[QUICK_START_VERIFIED.md](QUICK_START_VERIFIED.md)** - Verified quick start guide
+- **[DEPLOYMENT_TEST_REPORT.md](DEPLOYMENT_TEST_REPORT.md)** - Test results & validation
+- **[detail_design_document.md](detail_design_document.md)** - Original design decisions
 
+### Architecture & Data Persistence
+
+Full details in **[ARCHITECTURE.md](ARCHITECTURE.md)**. The platform uses Docker named volumes for persistent storage:
+
+**Network Architecture:**
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                    MLflow Platform Services                      │
@@ -39,6 +48,161 @@ Architecture summary (details in [detail_design_document.md](detail_design_docum
                                     │
                          Host: 7777 (HTTP) / 7443 (HTTPS)
                               5011 (Direct - Dev only)
+```
+
+**Volume Architecture:**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      Docker Named Volumes                        │
+│                                                                   │
+│  Development Mode (mlflow-dev_*)                                │
+│  ┌──────────────────────┬──────────────────────────────────┐    │
+│  │ mysql_data           │ /var/lib/mysql                    │    │
+│  │ • Database metadata  │ • Experiments, runs, metrics      │    │
+│  │ • User accounts      │ • Model registry                  │    │
+│  └──────────────────────┴──────────────────────────────────┘    │
+│                                                                   │
+│  ┌──────────────────────┬──────────────────────────────────┐    │
+│  │ artifact_data        │ /app/mlartifacts                  │    │
+│  │ • Model artifacts    │ • Training artifacts              │    │
+│  │ • Plots & figures    │ • Model files (PKL, H5, etc.)     │    │
+│  └──────────────────────┴──────────────────────────────────┘    │
+│                                                                   │
+│  Production Mode (mlflow-prod_*) - Additional Volume            │
+│  ┌──────────────────────┬──────────────────────────────────┐    │
+│  │ proxy_auth           │ /etc/nginx/auth                   │    │
+│  │ • htpasswd file      │ • Basic auth credentials          │    │
+│  │ • Persistent auth    │ • User authentication data        │    │
+│  └──────────────────────┴──────────────────────────────────┘    │
+│                                                                   │
+│  Volume Naming Convention:                                       │
+│  • Development: mlflow-dev_<volume_name>                         │
+│  • Production:  mlflow-prod_<volume_name>                        │
+│                                                                   │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+**Volume Management:**
+
+| Volume Name | Mount Point | Purpose | Lifecycle |
+|-------------|-------------|---------|-----------|
+| `mysql_data` | `/var/lib/mysql` | MySQL database files | Persists across restarts |
+| `artifact_data` | `/app/mlartifacts` | Model artifacts & files | Persists across restarts |
+| `proxy_auth` | `/etc/nginx/auth` | NGINX authentication | Persists across restarts (prod only) |
+
+**Data Persistence Guarantees:**
+- **Restart Safe**: Data survives `docker-compose down` (without `-v` flag)
+- **Upgrade Safe**: Volumes persist during platform upgrades
+- **Disaster Recovery**: Volumes can be backed up using `docker volume` commands
+- **Development**: Volumes use prefix `mlflow-dev_*`
+- **Production**: Volumes use prefix `mlflow-prod_*`
+
+**Volume Cleanup:**
+```bash
+# WARNING: These commands DELETE ALL DATA
+
+# Remove development volumes
+docker-compose -f docker-compose.core.yml -f docker-compose.dev.override.yml \
+  --env-file ../env/dev.env down -v
+
+# Remove production volumes
+docker-compose -f docker-compose.core.yml -f docker-compose.proxy.yml \
+  --env-file ../env/prod.env --profile proxy down -v
+
+# Manually remove specific volumes
+docker volume rm mlflow-dev_mysql_data
+docker volume rm mlflow-dev_artifact_data
+docker volume rm mlflow-prod_mysql_data
+docker volume rm mlflow-prod_artifact_data
+docker volume rm mlflow-prod_proxy_auth
+```
+
+**Backup & Recovery:**
+```bash
+# Backup volumes
+docker run --rm -v mlflow-prod_mysql_data:/data -v $(pwd):/backup \
+  alpine tar czf /backup/mysql_backup.tar.gz -C /data .
+
+docker run --rm -v mlflow-prod_artifact_data:/data -v $(pwd):/backup \
+  alpine tar czf /backup/artifact_backup.tar.gz -C /data .
+
+# Restore volumes
+docker volume create mlflow-prod_mysql_data
+docker run --rm -v mlflow-prod_mysql_data:/data -v $(pwd):/backup \
+  alpine tar xzf /backup/mysql_backup.tar.gz -C /data
+
+docker volume create mlflow-prod_artifact_data
+docker run --rm -v mlflow-prod_artifact_data:/data -v $(pwd):/backup \
+  alpine tar xzf /backup/artifact_backup.tar.gz -C /data
+```
+
+**Container Dependencies:**
+
+The platform follows a strict startup order to ensure proper initialization:
+
+```
+1. db (mysql)          ← Started first
+   ↓ (healthy)
+2. artifact (mlflow)   ← Waits for db to be healthy
+   ↓ (started)
+3. tracking (mlflow)   ← Waits for db healthy + artifact started
+   ↓ (started)
+4. proxy (nginx)       ← Waits for tracking started (prod only)
+```
+
+**Container Details:**
+
+| Container | Image | Internal Port | External Port (Dev) | External Port (Prod) | Role |
+|-----------|-------|---------------|---------------------|----------------------|------|
+| `mlflow-{env}-db` | `mysql:8.0` | 3306 | 3316 | Not exposed | Metadata storage |
+| `mlflow-{env}-artifact` | Custom MLflow | 5500 | 5500 | Not exposed | Artifact server |
+| `mlflow-{env}-tracking` | Custom MLflow | 5001 | 5011 | Not exposed | Tracking UI/API |
+| `mlflow-{env}-proxy` | `nginx:alpine` | 80/443 | Not used | 7777/7443 | Reverse proxy (prod only) |
+
+*Note: `{env}` is either `dev` or `prod` based on `COMPOSE_PROJECT_NAME`*
+
+**Health Checks:**
+
+All containers implement health checks to ensure reliability:
+
+```yaml
+db:
+  healthcheck:
+    test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+    interval: 10s
+    timeout: 5s
+    retries: 5
+
+artifact:
+  healthcheck:
+    test: ["CMD", "curl", "-f", "http://localhost:5500/health"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+
+tracking:
+  healthcheck:
+    test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+```
+
+**Startup Verification:**
+
+Check all containers are running:
+```bash
+# View container status
+docker ps --filter "name=mlflow"
+
+# Check logs
+docker logs mlflow-dev-tracking --tail 50
+docker logs mlflow-dev-artifact --tail 50
+docker logs mlflow-dev-db --tail 50
+
+# Production
+docker logs mlflow-prod-tracking --tail 50
+docker logs mlflow-prod-proxy --tail 50
 ```
 
 ## 2. Quick Start
