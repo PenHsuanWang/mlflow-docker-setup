@@ -30,7 +30,8 @@ services:
 
 networks:
   mlops_net:
-    external: true
+    # Network is defined in docker-compose.core.yml
+    # When both files are used together, this reference joins the existing network
     name: ${COMPOSE_PROJECT_NAME:-mlflow}_mlops_net
   mlops_public:
     driver: bridge
